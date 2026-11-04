@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日常餐單規劃系統 v1.6</title>
+    <style>
+        :root {
+            --primary-color: #FF8C00;
+            --secondary-color: #FFA500;
+            --bg-color: #FFFDF5;
+            --card-bg: #FFFFFF;
+            --text-color: #4A4A4A;
+            --danger-color: #FF6B6B;
+            --success-color: #4CAF50;
+            --purple-color: #8E44AD;
+        }
+        body { 
+            font-family: 'PingFang HK', 'Segoe UI', sans-serif; 
+            background-color: var(--bg-color); 
+            color: var(--text-color); 
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            font-size: 16px; 
+            padding-bottom: 80px;
+        }
+        h1, h2, h3 { color: #D35400; }
+        .header { text-align: center; border-bottom: 3px solid var(--primary-color); padding-bottom: 15px; margin-bottom: 25px; }
+        .version { font-size: 0.85em; color: #888; margin-top: 5px; }
+        .controls, .export-section, .day-card, .new-dish-card, .custom-dish-card { 
+            background: var(--card-bg); 
+            padding: 20px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 15px rgba(255, 140, 0, 0.08); 
+            margin-bottom: 20px; 
+        }
+        .new-dish-card { border: 2px dashed var(--primary-color); background-color: #FFF8E1; }
+        .custom-dish-card { border: 2px solid #4CAF50; background-color: #F1F8E9; display: none; }
+        select, input { 
+            padding: 12px; margin: 5px; border-radius: 8px; border: 1px solid #E0E0E0; 
+            font-size: 16px; background-color: #FAFAFA; transition: all 0.3s ease; box-sizing: border-box;
+        }
+        select:focus, input:focus, textarea:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 5px rgba(255, 140, 0, 0.3); }
+        button { 
+            padding: 10px 18px; margin: 5px; border-radius: 8px; border: none; font-size: 16px; font-weight: bold;
+            background-color: var(--primary-color); color: white; cursor: pointer; 
+            transition: transform 0.1s, box-shadow 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        button:active { transform: translateY(2px); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .btn-danger { background-color: var(--danger-color); color: white;}
+        .btn-outline { background-color: transparent; border: 2px solid var(--primary-color); color: var(--primary-color); }
+        .btn-success { background-color: var(--success-color); color: white; }
+        .btn-purple { background-color: var(--purple-color); color: white; }
+        .alert { background-color: #FFF3E0; color: #E65100; padding: 12px; border-left: 5px solid #FF9800; margin-bottom: 15px; font-weight: bold; border-radius: 6px; }
+        .day-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #FFF3E0; padding-bottom: 12px; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;}
+        .day-title { font-size: 1.3em; font-weight: bold; color: #D35400; }
+        .dish-row { display: flex; align-items: center; margin-bottom: 12px; gap: 8px; }
+        .dish-row select { flex: 1.5; min-width: 140px; }
+        .dish-row input { flex: 2; min-width: 120px; }
+        .dish-row button { padding: 12px; }
+        @media (max-width: 600px) {
+            .dish-row { flex-direction: column; align-items: stretch; background: #fafafa; padding: 10px; border-radius: 8px; border: 1px solid #eee;}
+            .dish-row button { margin-top: 5px; }
+            .form-row { display: flex; flex-direction: column; }
+            .form-row input, .form-row select { width: 100%; margin-left: 0; margin-right: 0;}
+        }
+        .nutrition-warning { color: var(--danger-color); font-size: 0.9em; margin-left: 10px; font-weight: normal;}
+        textarea { width: 100%; height: 180px; resize: vertical; margin-top: 10px; padding: 12px; border-radius: 8px; border: 1px solid #E0E0E0; font-size: 15px; box-sizing: border-box;}
+        #toast {
+            visibility: hidden; min-width: 250px; background-color: #333; color: #fff;
+            text-align: center; border-radius: 30px; padding: 16px; position: fixed;
+            z-index: 1000; left: 50%; top: 30px; transform: translateX(-50%);
+            font-size: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            opacity: 0; transition: opacity 0.3s, top 0.3s;
+        }
+        #toast.show { visibility: visible; opacity: 1; top: 50px; }
+        .export-btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+        .export-btn-group button { flex: 1; min-width: 200px; padding: 14px; }
+    </style>
+</head>
+<body>
+    <div id="toast">提示訊息</div>
+    <div class="header">
+        <h1>🥘 我的溫馨餐單規劃</h1>
+        <div class="version">系統版本：1.6 | 季節推薦與雙版本匯出 (姐姐版 / 婆婆版)</div>
+    </div>
+
+    <div class="controls">
+        <label>🗓 生成日數：</label>
+        <select id="daysCount">
+            <option value="1">1 天</option>
+            <option value="3">3 天</option>
+            <option value="7" selected>7 天</option>
+        </select>
+        <label>🍽 每日菜式：</label>
+        <select id="mealsCount">
+            <option value="1">1 款</option>
+            <option value="2">2 款</option>
+            <option value="3" selected>3 款 (預設)</option>
+            <option value="4">4 款</option>
+        </select>
+        <div style="margin-top: 15px;">
+            <button onclick="generateMenu()">🎲 重新生成餐單</button>
+            <button class="btn-success" onclick="toggleCustomDishForm()">📝 新增專屬菜式</button>
+            <button class="btn-outline" onclick="clearData()">⚠️ 清除記憶</button>
+        </div>
+    </div>
+
+    <div id="customDishSection" class="custom-dish-card">
+        <h3 style="margin-top: 0; color: #2E7D32;">📝 新增專屬菜式至資料庫</h3>
+        <p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">加入後將永久保存，並可於下拉選單中選用。</p>
+        <div class="form-row" style="display: flex; gap: 10px; margin-bottom: 10px;">
+            <input type="text" id="customDishName" placeholder="菜式中文名稱 (必填，如: 麻婆豆腐)" style="flex: 1;">
+            <input type="text" id="customDishEn" placeholder="英文名稱 (給工人看, 必填)" style="flex: 1;">
+        </div>
+        <div class="form-row" style="display: flex; gap: 10px; margin-bottom: 10px;">
+            <select id="customDishCat" style="flex: 1;">
+                <option value="meat">🥩 第1類：肉類</option>
+                <option value="veg">🥬 第2類：蔬菜類</option>
+                <option value="other">🍳 第3類：其他 (魚/蛋/豆腐)</option>
+                <option value="grandma">👵 第4類：婆婆煮</option>
+                <option value="unclassified">🍚 第5類：未分類</option>
+            </select>
+            <input type="text" id="customDishIngredients" placeholder="主要材料 (給婆婆買餸，例: 豆腐、免治豬肉)" style="flex: 2;">
+        </div>
+        <textarea id="customDishRecipe" placeholder="英文簡短烹飪秘訣 (選填，匯出給工人姐姐參考)" style="height: 80px;"></textarea>
+        <div style="margin-top: 15px; text-align: right;">
+            <button class="btn-outline" onclick="toggleCustomDishForm()">取消</button>
+            <button class="btn-success" onclick="saveCustomDish()">💾 儲存並加入資料庫</button>
+        </div>
+    </div>
+
+    <div id="globalAlerts"></div>
+
+    <div id="newDishSection" class="new-dish-card" style="display:none;">
+        <h3 style="margin-top:0;">💡 系統每週新菜式挑戰！</h3>
+        <p><strong>🧑‍🍳 菜名：</strong><span id="newDishName"></span></p>
+        <p><strong>📖 做法：</strong><span id="newDishRecipe" style="color:#666;"></span></p>
+        <div style="margin-top:15px;">
+            <button onclick="acceptSystemNewDish()">✅ 加入本週餐單及恆常庫</button>
+            <button class="btn-danger" onclick="rejectSystemNewDish()">❌ 這次先不要</button>
+        </div>
+    </div>
+
+    <div id="menuContainer"></div>
+
+    <div class="export-section">
+        <h3>📤 匯出 WhatsApp 清單</h3>
+        <div class="export-btn-group">
+            <button onclick="exportWhatsApp('helper')">📲 工人姐姐版 (中英對照 + Tips)</button>
+            <button class="btn-purple" onclick="exportWhatsApp('grandma')">👵 婆婆買餸版 (中文 + 買餸清單)</button>
+        </div>
+        <textarea id="exportText" placeholder="點擊上方按鈕後，清單會出現在這裡，並自動複製到剪貼簿！"></textarea>
+    </div>
+
+    <script>
+        const CURRENT_VERSION = '1.6';
+
+        // 預設核心資料庫 (已納入 v1.6 新增菜式)
+        const defaultDatabase = {
+            meat: [
+                '黑椒洋蔥薯仔牛肉粒', '紅酒燴牛肋條', '金菇肥牛', '香茅豬頸肉', '糖醋豬柳', '蕃茄豬扒', '麵豉蒸腩肉片', '豬手', 
+                '土魷馬蹄蒸/煎肉餅', '咖哩薯仔紅蘿蔔雞扒/件', '滷水/豉油雞翼', '牛油蒜蓉雞翼', '蒜蓉蜜糖雞腿', '薑蔥煎雞扒', 
+                '洋蔥薯仔炆雞件', '冬菇紅棗雲耳蒸雞', '手撕雞', '洋蔥雞柳', '釀豆腐', '釀茄子', '煎鯪魚肉釀青椒',
+                '蠔油薯仔炆雞翼', '孜然雞翼', '檸檬雞翼', '冬瓜火腩', '菠蘿彩椒雞塊', '糖醋蓮藕肉丸', '焗蒜香一字骨'
+            ],
+            veg: [
+                '蝦醬茄子', '蒜蓉炒南瓜', '大啡菇炒蒜心', '翠玉瓜炒肉丸', '翠肉瓜炒雞柳', '節瓜炒蝦仁', '生菜', '菜心', 
+                '金銀蛋娃娃菜', '西蘭花', '臘腸炒芥蘭', '臘肉炒椰菜', '豆豉鯪魚炒油麥菜', '西蘭花炒肉丸', '椰菜花炒肉丸', 
+                '西芹炒蝦仁', '西蘭花炒蝦仁', '肉碎乾煸四季豆', '勝瓜炒雲耳'
+            ],
+            other: [
+                '蒸魚', '煎三文魚', '蝦仁炒蛋', '蒸蛋', '蕃茄炒蛋', '香葉肉碎炒蛋', '韭菜蝦仁煎蛋餅', 
+                '土魷蒸/炒粉絲', '肥牛韓式炒粉絲', '煮豆腐', '茄汁蝦'
+            ],
+            grandma: ['滷水鵝', '豉油雞'],
+            unclassified: ['蕃茄肉醬意粉', '黑松露蘑菇帶子意粉', '炒飯', '叉燒蛋炒飯', '拳頭飯', '蘑菇忌廉湯']
+        };
+
+        const defaultEnDict = {
+            '黑椒洋蔥薯仔牛肉粒': 'Black Pepper Beef with Potato & Onion', '紅酒燴牛肋條': 'Braised Beef Short Ribs in Red Wine', '金菇肥牛': 'Beef Rolls with Enoki Mushrooms', '香茅豬頸肉': 'Lemongrass Pork Neck', '糖醋豬柳': 'Sweet and Sour Pork', '蕃茄豬扒': 'Tomato Pork Chops', '麵豉蒸腩肉片': 'Steamed Pork Belly with Black Bean Sauce', '豬手': 'Braised Pork Knuckle', '土魷馬蹄蒸/煎肉餅': 'Steamed/Pan-fried Pork Patty with Dried Squid & Water Chestnut', '咖哩薯仔紅蘿蔔雞扒/件': 'Curry Chicken with Potato & Carrot', '滷水/豉油雞翼': 'Soy Sauce Chicken Wings', '牛油蒜蓉雞翼': 'Garlic Butter Chicken Wings', '蒜蓉蜜糖雞腿': 'Honey Garlic Chicken Legs', '薑蔥煎雞扒': 'Pan-fried Chicken Chop with Ginger & Scallion', '洋蔥薯仔炆雞件': 'Braised Chicken with Onion & Potato', '冬菇紅棗雲耳蒸雞': 'Steamed Chicken with Shiitake & Wood Ear Fungus', '手撕雞': 'Shredded Chicken', '洋蔥雞柳': 'Stir-fried Chicken Strips with Onion', '釀豆腐': 'Stuffed Tofu', '釀茄子': 'Stuffed Eggplant', '煎鯪魚肉釀青椒': 'Pan-fried Green Peppers Stuffed with Dace Paste',
+            '蝦醬茄子': 'Eggplant with Shrimp Paste', '蒜蓉炒南瓜': 'Stir-fried Pumpkin with Garlic', '大啡菇炒蒜心': 'Stir-fried Portobello Mushroom with Garlic Stems', '翠玉瓜炒肉丸': 'Stir-fried Meatballs with Zucchini', '翠肉瓜炒雞柳': 'Stir-fried Chicken Strips with Zucchini', '節瓜炒蝦仁': 'Stir-fried Shrimp with Hairy Gourd', '生菜': 'Lettuce', '菜心': 'Choy Sum', '金銀蛋娃娃菜': 'Baby Cabbage with Salted & Century Eggs', '西蘭花': 'Broccoli', '臘腸炒芥蘭': 'Stir-fried Chinese Broccoli with Chinese Sausage', '臘肉炒椰菜': 'Stir-fried Cabbage with Cured Meat', '豆豉鯪魚炒油麥菜': 'Stir-fried Indian Lettuce with Fried Dace & Black Beans', '西蘭花炒肉丸': 'Stir-fried Meatballs with Broccoli', '椰菜花炒肉丸': 'Stir-fried Meatballs with Cauliflower', '西芹炒蝦仁': 'Stir-fried Shrimp with Celery', '西蘭花炒蝦仁': 'Stir-fried Shrimp with Broccoli', '肉碎乾煸四季豆': 'Dry-fried Green Beans with Minced Pork',
+            '蒸魚': 'Steamed Fish', '煎三文魚': 'Pan-fried Salmon', '蝦仁炒蛋': 'Scrambled Eggs with Shrimp', '蒸蛋': 'Steamed Egg', '蕃茄炒蛋': 'Scrambled Eggs with Tomato', '香葉肉碎炒蛋': 'Scrambled Eggs with Minced Pork & Basil', '韭菜蝦仁煎蛋餅': 'Pan-fried Omelette with Chives & Shrimp', '土魷蒸/炒粉絲': 'Steamed/Stir-fried Glass Noodles with Dried Squid', '肥牛韓式炒粉絲': 'Korean Japchae with Beef', '煮豆腐': 'Boiled Tofu', '茄汁蝦': 'Prawns in Tomato Sauce',
+            '滷水鵝': 'Marinated Goose', '豉油雞': 'Soy Sauce Chicken',
+            '蕃茄肉醬意粉': 'Spaghetti Bolognese', '黑松露蘑菇帶子意粉': 'Black Truffle & Mushroom Spaghetti with Scallops', '炒飯': 'Fried Rice', '叉燒蛋炒飯': 'BBQ Pork & Egg Fried Rice', '拳頭飯': 'Rice Balls', '蘑菇忌廉湯': 'Cream of Mushroom Soup',
+            '外賣': 'Takeaway / Eat Out',
+            // v1.6 新增翻譯
+            '蠔油薯仔炆雞翼': 'Braised Chicken Wings with Potatoes in Oyster Sauce',
+            '孜然雞翼': 'Pan-fry Cumin Chicken Wings',
+            '檸檬雞翼': 'Pan-fried Chicken Wings with Lemon Sauce',
+            '冬瓜火腩': 'Braised Winter Melon with Roasted Pork Belly',
+            '菠蘿彩椒雞塊': 'Sweet and Sour Chicken with Pineapple and Bell Peppers',
+            '糖醋蓮藕肉丸': 'Sweet and Sour Pork Meatballs with Lotus Root',
+            '焗蒜香一字骨': 'Baked Garlic Pork Ribs',
+            '勝瓜炒雲耳': 'Stir-fried Luffa with Black Fungus'
+        };
+
+        // 英文烹飪提示庫 (給工人姐姐)
+        const defaultRecipeDict = {
+            '蠔油薯仔炆雞翼': 'Cut potatoes into cubes. Sear chicken wings first. Add oyster sauce & water, simmer for 15 mins until potatoes are soft.',
+            '孜然雞翼': 'Marinate wings with cumin powder and salt. Pan-fry over medium heat until golden brown and crispy on both sides.',
+            '檸檬雞翼': 'Pan-fry wings until cooked. Pour in fresh lemon juice, sugar, and water mix. Simmer until sticky and glossy.',
+            '冬瓜火腩': 'Blanch melon first. Stir-fry roast pork with ginger & garlic, add melon, oyster sauce and broth. Simmer for 10 mins.',
+            '菠蘿彩椒雞塊': 'Cut chicken, bell peppers, and pineapple into bite-sized pieces. Cook chicken first, toss with peppers and sweet & sour sauce.',
+            '糖醋蓮藕肉丸': 'Mix minced pork with chopped lotus root. Shape into balls, pan-fry until brown, then toss in sweet and sour sauce.',
+            '焗蒜香一字骨': 'Marinate ribs with lots of minced garlic and soy sauce. Bake in oven/air-fryer at 180°C for 15-18 mins until cooked.',
+            '勝瓜炒雲耳': 'Soak black fungus. Peel luffa & cut into wedges. Stir-fry garlic, luffa, fungus, cook fast.'
+        };
+
+        // 中文買餸材料庫 (給婆婆買餸清單)
+        const defaultIngredientsDict = {
+            '蠔油薯仔炆雞翼': '雞翼、薯仔、蠔油、蒜頭',
+            '孜然雞翼': '雞翼、孜然粉',
+            '檸檬雞翼': '雞翼、鮮檸檬、冰糖',
+            '冬瓜火腩': '冬瓜、火腩(燒肉)、薑片、蒜蓉',
+            '菠蘿彩椒雞塊': '雞柳、菠蘿、三色椒、甜酸汁',
+            '糖醋蓮藕肉丸': '免治豬肉、蓮藕、鎮江醋、糖',
+            '焗蒜香一字骨': '一字排骨、蒜蓉、豉油',
+            '勝瓜炒雲耳': '勝瓜、雲耳、蒜頭',
+            '黑椒洋蔥薯仔牛肉粒': '牛肉粒、薯仔、洋蔥、黑椒碎',
+            '紅酒燴牛肋條': '牛肋條、紅酒、洋蔥、甘筍',
+            '金菇肥牛': '肥牛片、金菇',
+            '香茅豬頸肉': '豬頸肉、香茅',
+            '糖醋豬柳': '豬柳、甜酸汁、洋蔥',
+            '蕃茄豬扒': '豬扒、蕃茄、洋蔥',
+            '蒸魚': '鮮魚、蔥、薑、蒸魚豉油',
+            '煎三文魚': '三文魚柳、檸檬',
+            '蝦仁炒蛋': '蝦仁、雞蛋、蔥花',
+            '蒸蛋': '雞蛋、蔥花',
+            '蕃茄炒蛋': '蕃茄、雞蛋',
+            '生菜': '生菜、蒜蓉',
+            '菜心': '菜心、薑片',
+            '金銀蛋娃娃菜': '娃娃菜、鹹蛋、皮蛋、蒜頭',
+            '西蘭花': '西蘭花、蒜蓉',
+            '肉碎乾煸四季豆': '四季豆、免治豬肉、冬菜/蝦米'
+        };
+
+        // 季節推薦菜色分類 (夏 5-10月, 冬 11-4月)
+        const seasonalDishes = {
+            summer: {
+                meat: ['冬瓜火腩', '檸檬雞翼', '蕃茄豬扒', '洋蔥雞柳'],
+                veg: ['勝瓜炒雲耳', '節瓜炒蝦仁', '金銀蛋娃娃菜', '生菜'],
+                other: ['蒸蛋', '蕃茄炒蛋', '煮豆腐']
+            },
+            winter: {
+                meat: ['蠔油薯仔炆雞翼', '紅酒燴牛肋條', '洋蔥薯仔炆雞件', '糖醋蓮藕肉丸', '豬手', '臘腸炒芥蘭', '臘肉炒椰菜'],
+                veg: ['蒜蓉炒南瓜', '肉碎乾煸四季豆'],
+                other: ['土魷蒸/炒粉絲', '肥牛韓式炒粉絲']
+            }
+        };
+
+        const systemNewDishesDb = [
+            { name: "西蘭花炒帶子", enName: "Stir-fried Scallops with Broccoli", recipe: "帶子出水備用。西蘭花切件飛水。起鑊爆香蒜蓉，加入西蘭花及帶子快炒，加少許鹽調味即成。", category: "other", ingredients: "鮮帶子、西蘭花、蒜蓉" },
+            { name: "南瓜蒸排骨", enName: "Steamed Pork Ribs with Pumpkin", recipe: "排骨用豆豉蒜蓉醃好，鋪在切件的南瓜上，隔水蒸15分鐘。", category: "meat", ingredients: "排骨、南瓜、豆豉、蒜蓉" }
+        ];
+
+        // 讀取本地資料
+        let database = JSON.parse(localStorage.getItem('myDatabase')) || defaultDatabase;
+        let enDict = JSON.parse(localStorage.getItem('myEnDict')) || defaultEnDict;
+        let recipeDict = JSON.parse(localStorage.getItem('myRecipeDict')) || defaultRecipeDict;
+        let ingredientsDict = JSON.parse(localStorage.getItem('myIngredientsDict')) || defaultIngredientsDict;
+        let currentMenu = JSON.parse(localStorage.getItem('myCurrentMenu')) || [];
+        let currentSystemDish = null;
+
+        const daysOfWeek = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'];
+
+        function showToast(message, color = "#4CAF50") {
+            const toast = document.getElementById("toast");
+            toast.innerText = message;
+            toast.style.backgroundColor = color;
+            toast.className = "show";
+            setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 3000);
+        }
+
+        // 舊用戶版本無縫升級 (Data Migration)
+        function checkVersionMigration() {
+            const savedVersion = localStorage.getItem('myAppVersion');
+            if (savedVersion !== CURRENT_VERSION) {
+                // 自動合流新菜式
+                for (let cat in defaultDatabase) {
+                    if (!database[cat]) database[cat] = [];
+                    defaultDatabase[cat].forEach(d => {
+                        if (!database[cat].includes(d)) database[cat].push(d);
+                    });
+                }
+                enDict = Object.assign({}, defaultEnDict, enDict);
+                recipeDict = Object.assign({}, defaultRecipeDict, recipeDict);
+                ingredientsDict = Object.assign({}, defaultIngredientsDict, ingredientsDict);
+                
+                localStorage.setItem('myAppVersion', CURRENT_VERSION);
+                saveData();
+            }
+        }
+
+        function getCurrentSeason() {
+            const currentMonth = new Date().getMonth() + 1;
+            return (currentMonth >= 5 && currentMonth <= 10) ? 'summer' : 'winter';
+        }
+
+        function init() {
+            checkVersionMigration();
+            if(currentMenu.length === 0) {
+                generateMenu(false);
+            } else {
+                renderMenu();
+            }
+            // 每週系統推薦
+            document.getElementById('newDishSection').style.display = 'block';
+            currentSystemDish = systemNewDishesDb[Math.floor(Math.random() * systemNewDishesDb.length)];
+            document.getElementById('newDishName').innerText = currentSystemDish.name;
+            document.getElementById('newDishRecipe').innerText = currentSystemDish.recipe;
+        }
+
+        function saveData() {
+            localStorage.setItem('myDatabase', JSON.stringify(database));
+            localStorage.setItem('myEnDict', JSON.stringify(enDict));
+            localStorage.setItem('myRecipeDict', JSON.stringify(recipeDict));
+            localStorage.setItem('myIngredientsDict', JSON.stringify(ingredientsDict));
+            localStorage.setItem('myCurrentMenu', JSON.stringify(currentMenu));
+        }
+
+        function clearData() {
+            if(confirm("確定要清除所有紀錄並回復預設嗎？這將會刪除你新增的自訂菜式及目前餐單。")) {
+                localStorage.clear();
+                location.reload();
+            }
+        }
+
+        function toggleCustomDishForm() {
+            const form = document.getElementById('customDishSection');
+            form.style.display = (form.style.display === 'none' || form.style.display === '') ? 'block' : 'none';
+        }
+
+        function saveCustomDish() {
+            const name = document.getElementById('customDishName').value.trim();
+            const enName = document.getElementById('customDishEn').value.trim();
+            const cat = document.getElementById('customDishCat').value;
+            const ings = document.getElementById('customDishIngredients').value.trim();
+            const recipe = document.getElementById('customDishRecipe').value.trim();
+
+            if(!name || !enName) {
+                showToast("⚠️ 請務必填寫中英名稱！", "#FF6B6B");
+                return;
+            }
+
+            for(let key in database) {
+                if(database[key].includes(name)) {
+                    showToast("⚠️ 此菜式已存在！", "#FF6B6B");
+                    return;
+                }
+            }
+
+            database[cat].push(name);
+            enDict[name] = enName;
+            if(ings) ingredientsDict[name] = ings;
+            if(recipe) recipeDict[name] = recipe;
+
+            saveData();
+            renderMenu();
+
+            document.getElementById('customDishName').value = '';
+            document.getElementById('customDishEn').value = '';
+            document.getElementById('customDishIngredients').value = '';
+            document.getElementById('customDishRecipe').value = '';
+            toggleCustomDishForm();
+            showToast(`✅ 已成功新增：「${name}」！`, "#4CAF50");
+        }
+
+        function acceptSystemNewDish() {
+            if(!database[currentSystemDish.category].includes(currentSystemDish.name)) {
+                database[currentSystemDish.category].push(currentSystemDish.name);
+                enDict[currentSystemDish.name] = currentSystemDish.enName;
+                recipeDict[currentSystemDish.name] = currentSystemDish.recipe;
+                if(currentSystemDish.ingredients) ingredientsDict[currentSystemDish.name] = currentSystemDish.ingredients;
+            }
+            if(currentMenu[2]) {
+                currentMenu[2].dishes.push({ name: currentSystemDish.name, note: '✨新菜試食' });
+            }
+            saveData();
+            renderMenu();
+            showToast(`已將「${currentSystemDish.name}」加入恆常庫！`, "#FF8C00");
+            document.getElementById('newDishSection').style.display = 'none';
+        }
+
+        function rejectSystemNewDish() {
+            document.getElementById('newDishSection').style.display = 'none';
+        }
+
+        // 自動季節性推薦演算法 (40% 當季推薦權重)
+        function getRandomDish(category) {
+            const season = getCurrentSeason();
+            const normalPool = database[category] || [];
+            const seasonalPool = (seasonalDishes[season] && seasonalDishes[season][category]) ? seasonalDishes[season][category] : [];
+
+            if (seasonalPool.length > 0 && Math.random() < 0.4) {
+                const candidates = seasonalPool.filter(d => normalPool.includes(d));
+                if (candidates.length > 0) {
+                    return candidates[Math.floor(Math.random() * candidates.length)];
+                }
+            }
+            return normalPool[Math.floor(Math.random() * normalPool.length)];
+        }
+
+        function generateMenu(showNotif = true) {
+            const daysCount = parseInt(document.getElementById('daysCount').value);
+            const mealsCount = parseInt(document.getElementById('mealsCount').value);
+            currentMenu = [];
+
+            for (let i = 0; i < daysCount; i++) {
+                let dayDishes = [];
+                if(mealsCount >= 1) dayDishes.push({ name: getRandomDish('meat'), note: '' });
+                if(mealsCount >= 2) dayDishes.push({ name: getRandomDish('veg'), note: '' });
+                if(mealsCount >= 3) dayDishes.push({ name: getRandomDish('other'), note: '' });
+                for(let j = 3; j < mealsCount; j++) {
+                    dayDishes.push({ name: getRandomDish('unclassified'), note: '' });
+                }
+                currentMenu.push({ day: daysOfWeek[i % 7], dishes: dayDishes, isOut: false });
+            }
+            saveData();
+            renderMenu();
+            if(showNotif) showToast("🎲 成功生成全新餐單！", "#FF8C00");
+        }
+
+        function clearDay(dayIndex) {
+            currentMenu[dayIndex].dishes = [{ name: '外賣', note: '不用買餸' }];
+            currentMenu[dayIndex].isOut = true;
+            saveData();
+            renderMenu();
+            showToast(`${currentMenu[dayIndex].day} 已改為外賣`, "#666");
+        }
+
+        function removeDish(dayIndex, dishIndex) {
+            currentMenu[dayIndex].dishes.splice(dishIndex, 1);
+            saveData();
+            renderMenu();
+        }
+
+        function addDish(dayIndex) {
+            currentMenu[dayIndex].dishes.push({ name: getRandomDish('meat'), note: '' });
+            saveData();
+            renderMenu();
+        }
+
+        function updateDish(dayIndex, dishIndex, newName) {
+            currentMenu[dayIndex].dishes[dishIndex].name = newName;
+            saveData();
+            checkNutrition();
+        }
+
+        function updateNote(dayIndex, dishIndex, note) {
+            currentMenu[dayIndex].dishes[dishIndex].note = note;
+            saveData();
+        }
+
+        function checkNutrition() {
+            let redMeatCount = 0;
+            document.getElementById('globalAlerts').innerHTML = '';
+            currentMenu.forEach((dayObj, dIndex) => {
+                let fryCount = 0;
+                let dayWarning = '';
+                dayObj.dishes.forEach(dish => {
+                    const name = dish.name;
+                    if (name.includes('牛') || name.includes('豬') || name.includes('腩')) redMeatCount++;
+                    if (name.includes('煎') || name.includes('炒') || name.includes('炸')) fryCount++;
+                });
+                if (fryCount >= 3) {
+                    dayWarning = `<div class="nutrition-warning">⚠️ 營養師提示：今日煎炒較多，建議換一款蒸/煮菜式。</div>`;
+                }
+                const warningDiv = document.getElementById(`warning-${dIndex}`);
+                if(warningDiv) warningDiv.innerHTML = dayWarning;
+            });
+            if (redMeatCount > 5) {
+                document.getElementById('globalAlerts').innerHTML = `<div class="alert">👩‍⚕️ 營養師提示：本週紅肉較多 (共 ${redMeatCount} 款)，建議替換部分為雞肉或魚類。</div>`;
+            }
+        }
+
+        function renderMenu() {
+            const container = document.getElementById('menuContainer');
+            container.innerHTML = '';
+            let selectOptionsHtml = `<option value="外賣">🍔 外賣 / 出街食</option>`;
+            const labels = { meat: '🥩 第1類：肉類', veg: '🥬 第2類：蔬菜', other: '🍳 第3類：其他', grandma: '👵 第4類：婆婆煮', unclassified: '🍚 第5類：未分類' };
+            for (const cat in database) {
+                selectOptionsHtml += `<optgroup label="${labels[cat]}">`;
+                database[cat].forEach(dish => {
+                    selectOptionsHtml += `<option value="${dish}">${dish}</option>`;
+                });
+                selectOptionsHtml += `</optgroup>`;
+            }
+
+            currentMenu.forEach((dayObj, dIndex) => {
+                let html = `<div class="day-card">
+                    <div class="day-header">
+                        <span class="day-title">📅 ${dayObj.day}</span>
+                        <button class="btn-outline" style="font-size:14px; padding:6px 10px;" onclick="clearDay(${dIndex})">🗑️ 轉外賣</button>
+                    </div>
+                    <div id="warning-${dIndex}" style="margin-bottom: 10px;"></div>`;
+                
+                dayObj.dishes.forEach((dish, dishIndex) => {
+                    html += `
+                        <div class="dish-row">
+                            <select onchange="updateDish(${dIndex}, ${dishIndex}, this.value)">
+                                ${selectOptionsHtml.replace(`value="${dish.name}"`, `value="${dish.name}" selected`)}
+                            </select>
+                            <input type="text" placeholder="📝 備註 (例: 少油)" value="${dish.note}" onchange="updateNote(${dIndex}, ${dishIndex}, this.value)">
+                            <button class="btn-danger" style="padding:10px 15px;" onclick="removeDish(${dIndex}, ${dishIndex})">✕</button>
+                        </div>
+                    `;
+                });
+                html += `<button class="btn-outline" style="width:100%; margin-top:10px; border-style:dashed;" onclick="addDish(${dIndex})">➕ 新增一道菜</button></div>`;
+                container.innerHTML += html;
+            });
+            checkNutrition();
+        }
+
+        // 雙版本 WhatsApp 匯出邏輯 (姐姐版 vs 婆婆版)
+        function exportWhatsApp(target) {
+            let output = "";
+            const enDays = {'星期一':'Mon','星期二':'Tue','星期三':'Wed','星期四':'Thu','星期五':'Fri','星期六':'Sat','星期日':'Sun'};
+
+            if (target === 'helper') {
+                output = "📋 【本週家裡餐單 Menu - Helper】\n\n";
+                currentMenu.forEach(dayObj => {
+                    output += `📅 *${dayObj.day} (${enDays[dayObj.day]})*\n`;
+                    if (dayObj.dishes.length === 0 || (dayObj.dishes.length === 1 && dayObj.dishes[0].name === '外賣')) {
+                        output += `  🍔 Eat Out / Takeaway (No cooking)\n\n`;
+                        return;
+                    }
+                    dayObj.dishes.forEach(dish => {
+                        const enName = enDict[dish.name] || "[Please Ask]";
+                        const noteText = dish.note ? ` (💬 ${dish.note})` : '';
+                        const tipText = recipeDict[dish.name] ? `\n     💡 Tip: ${recipeDict[dish.name]}` : '';
+                        output += `  ✅ ${dish.name} / ${enName}${noteText}${tipText}\n`;
+                    });
+                    output += `\n`;
+                });
+                showToast("✅ 已複製【工人姐姐版】清單！");
+            } else if (target === 'grandma') {
+                output = "👵 【本週買餸清單 - 婆婆版】\n\n";
+                currentMenu.forEach(dayObj => {
+                    output += `📅 *${dayObj.day}*\n`;
+                    if (dayObj.dishes.length === 0 || (dayObj.dishes.length === 1 && dayObj.dishes[0].name === '外賣')) {
+                        output += `  🍔 外賣或外出用餐 (今日不用買餸)\n\n`;
+                        return;
+                    }
+                    
+                    const dishNames = dayObj.dishes.map(d => d.name).join('、');
+                    output += `  🍲 今日煮：${dishNames}\n`;
+                    
+                    let dayIngredients = [];
+                    dayObj.dishes.forEach(dish => {
+                        if (ingredientsDict[dish.name]) {
+                            dayIngredients.push(ingredientsDict[dish.name]);
+                        } else {
+                            dayIngredients.push(`${dish.name}主要材料`);
+                        }
+                    });
+                    output += `  🛒 買餸備忘：${dayIngredients.join('；')}\n\n`;
+                });
+                showToast("✅ 已複製【婆婆買餸版】清單！");
+            }
+
+            const textarea = document.getElementById('exportText');
+            textarea.value = output;
+            textarea.select();
+            document.execCommand('copy');
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
